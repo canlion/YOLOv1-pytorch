@@ -213,7 +213,7 @@ if __name__ == '__main__':
     parser.add_argument('--momentum', type=float, default=.9, help='optimizer momentum')
     parser.add_argument('--weight_decay', type=float, default=5e-4, help='weight decay')
     # parser.add_argument('--epochs', type=int, default=135, help='train epochs')
-    parser.add_argument('--warmup_epochs', type=int, default=10, help='learning rate warmup epochs')
+    parser.add_argument('--warmup_epochs', type=int, default=2, help='learning rate warmup epochs')
     # parser.add_argument('--max_grad_norm', type=float, default=10., help='gradient clipping')
     parser.add_argument('--subdivision', type=int, default=2, help='')
     # parser.add_argument('--amp', type=bool, action='store_true', help='use automatic mixed precision')
