@@ -58,7 +58,7 @@ class YOLOv1Loss(nn.Module):
         obj_grid_mask.index_put_(torch.split(obj_grid_index, 1, dim=-1), torch.tensor(True, device=device))
         assert obj_grid_mask.sum().item() == N, 'obj_grid_mask'
 
-        # object grid
+        # object grid - pred에서 오브젝트가 위치한 그리드의 예측값
         obj_grid_pred = pred[obj_grid_mask]
         assert obj_grid_pred.size() == (N, L), 'obj_grid_pred'
 
@@ -71,7 +71,7 @@ class YOLOv1Loss(nn.Module):
         cls_target = F.one_hot(target[..., -1].long(), num_classes=self.C).float().to(device)
         loss_cls_prob = torch.square(cls_target - obj_cls_pred).sum()
 
-        # IoU
+        # IoU - pred, target의 YOLO style xywh를 디코딩하여 IoU 계산
         with torch.no_grad():
             box_pred_iou = obj_box_pred[..., :-1].clone()
             box_pred_iou[..., :2] += target[..., 1:3].flip(dims=(1,)).unsqueeze(1).repeat(1, self.B, 1)
@@ -94,12 +94,13 @@ class YOLOv1Loss(nn.Module):
         resp_mask.index_put_((torch.arange(N), iou_max_idx), torch.tensor(True, device=device))
         assert resp_mask.sum().item() == N
 
-        # responsible predictor
+        # responsible predictor - 그리드별로 B개의 predictor 중 IoU가 가장 높은 predictor의 예측값
         resp_box_pred = obj_box_pred[resp_mask]
         assert resp_box_pred.size() == (N, 5)
 
         # box loss
         loss_box_xy = torch.square(target[..., 3:5] - resp_box_pred[..., :2]).sum()
+        #  identity activation 사용하므로 예측값이 음수가 나올 수 있음. 따라서 wh의 sqrt를 타겟으로 이용
         loss_box_wh = torch.square(target[..., 5:7].sqrt() - resp_box_pred[..., 2:4]).sum()
         loss_box = loss_box_xy + loss_box_wh
 
