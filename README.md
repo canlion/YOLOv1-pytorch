@@ -6,8 +6,9 @@
 
 ## 데이터 - VOC 2007/2012
 
-VOC 데이터를 다운로드하여 `VOCdevkit` 하위에 `VOC{year}` 형식으로 정리 
-
+* VOC 데이터를 다운로드하여 `VOCdevkit` 하위에 `VOC{year}` 형식으로 정리.
+* `scripts/parse_voc_annotations.py`를 통해 ltrb 형식의 어노테이션 xml 파일을 xywh 형식의 text 파일로 변환. 
+  * 변환된 text 파일은 xml 파일과 같은 디렉토리에 저장됨.
 ```commandline
 {voc_root}
 └── VOCdevkit
