@@ -143,8 +143,7 @@ class VOC(Dataset):
         # ann_[:, 2:4] = np.square(ann_[:, 2:4])
 
         ann_[:, :4] *= np.array([[img_w, img_h, img_w, img_h]])
-        for x, y in ann_[:, :2]:
-            img = cv2.circle(img, (int(x), int(y)), 5, (255, 128, 0), -1)
+
         ltrbc = np.stack([
             ann_[:, 0] - ann_[:, 2] / 2.,
             ann_[:, 1] - ann_[:, 3] / 2.,
@@ -153,9 +152,14 @@ class VOC(Dataset):
             ann[..., -1],
         ], axis=-1)
         # print(ltrb)
-        for l, t, r, b, c in ltrbc:
-            img = cv2.rectangle(img, (int(l), int(t)), (int(r), int(b)), (128, 0, 255), 2)
-            img = cv2.putText(img, CLASSES[int(c)], (int(l), int(b)), cv2.FONT_HERSHEY_SIMPLEX, .75, (255, 0, 128), 2)
+        for row in ltrbc:
+            l, t, r, b, c = (int(v) for v in row)
+            img = cv2.line(img, (l, b), (r, t), (128, 0, 255), 1)
+            img = cv2.rectangle(img, (l, t), (r, b), (128, 0, 255), 2)
+            img = cv2.putText(img, CLASSES[c], (l, b), cv2.FONT_HERSHEY_SIMPLEX, .75, (255, 0, 128), 2)
+
+        for x, y in ann_[:, :2]:
+            img = cv2.circle(img, (int(x), int(y)), 5, (255, 128, 0), -1)
 
         if draw_grid:
             for grid_x in np.arange(0, img.shape[1], img.shape[1]//self.S):
