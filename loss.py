@@ -59,7 +59,7 @@ class YOLOv1Loss(nn.Module):
         assert obj_grid_mask.sum().item() == N, 'obj_grid_mask'
 
         # object grid - pred에서 오브젝트가 위치한 그리드의 예측값
-        obj_grid_pred = pred[obj_grid_mask]
+        obj_grid_pred = pred[obj_grid_index[:, 0], obj_grid_index[:, 1], obj_grid_index[:, 2]]
         assert obj_grid_pred.size() == (N, L), 'obj_grid_pred'
 
         obj_box_pred, obj_cls_pred = torch.split(obj_grid_pred, (self.B * 5, self.C), -1)
@@ -125,103 +125,6 @@ class YOLOv1Loss(nn.Module):
 
         return loss, loss_dict
 
-        ################################################################################################################
-
-        # target_origin = target.clone().detach()
-        # pred_origin = pred.clone().detach()
-
-        # batch, S, _, L = pred.size()
-        # N = target.size()[0]
-        #
-        # with torch.no_grad():  # 오브젝트가 위치한 그리드를 나타내는 마스크 생성
-        #     obj_idx = target[..., :3].long()
-        #     assert obj_idx.size() == (N, 3)
-        #     obj_mask = torch.zeros(batch, S, S, dtype=torch.bool)
-        #     # obj_mask = torch.cuda.BoolTensor((batch, S, S)).fill_(0)
-        #     obj_mask[obj_idx[..., 0], obj_idx[..., 1], obj_idx[..., 2]] = 1
-        #     assert obj_mask.sum().item() == N
-        #
-        # pred_obj = pred[obj_mask]  # responsible grid
-        # # pred_obj_copy = pred_obj.detach().clone()
-        # assert pred_obj.size() == (N, L)
-        # pred_noobj = pred[~obj_mask]  # no-responsible grid
-        # assert pred_noobj.size() == (batch * S * S - N, L)
-        #
-        # pred_obj_box, pred_obj_cls = torch.split(pred_obj, [self.B*5, self.C], dim=-1)  # 박스, 클래스 분할
-        # pred_obj_box = pred_obj_box.view(-1, self.B, 5)
-        # assert pred_obj_box.size() == (N, self.B, 5)
-        # assert pred_obj_cls.size() == (N, self.C)
-        #
-        # with torch.no_grad():
-        #     target_cls = F.one_hot(target[..., -1].long(), num_classes=self.C).float()
-        #     assert target_cls.size() == pred_obj_cls.size()
-        #
-        # # class prob. loss
-        # loss_cls = torch.square(target_cls - pred_obj_cls).sum()
-        #
-        # # iou 계산
-        # with torch.no_grad():
-        #     target_box_iou = target[..., 3:-1].clone().detach()
-        #     target_box_iou[..., :2] += target[..., 1:3].flip(dims=(1,))
-        #     target_box_iou[..., :2] /= S
-        #     assert target_box_iou.size() == (N, 4)
-        #     pred_box_iou = pred_obj_box[..., :-1].clone().detach()
-        #     pred_box_iou[..., :2] += target[..., 1:3].flip(dims=(1,)).unsqueeze(1).repeat(1, self.B, 1)
-        #     pred_box_iou[..., :2] /= S
-        #     pred_box_iou[..., 2:4].square_()
-        #     # print('\n', target_box_iou.unsqueeze(1).size(), '#########################33')
-        #     # print(pred_box_iou.size())
-        #     iou = IoU(pred_box_iou, target_box_iou.unsqueeze(1))
-        #     assert iou.size() == (N, self.B)
-        #     iou_max, max_iou_idx = torch.max(iou, dim=-1)
-        #     resp_mask = torch.zeros_like(iou, dtype=torch.bool)  # IoU가 더 높은 predictor를 나타내는 마스크 생성
-        #     resp_mask[torch.arange(N), max_iou_idx] = 1
-        #     assert resp_mask.sum().item() == N
-        #
-        # # responsible predictor
-        # pred_box_reps = pred_obj_box[resp_mask]
-        # assert pred_box_reps.size() == (N, 5)
-        # #####################################################
-        # pred_box_no_reps = pred_obj_box[~resp_mask]
-        # assert pred_box_no_reps.size() == (N, 5)
-        # #####################################################
-        #
-        # # confidence loss - target: IoU
-        # loss_conf_reps = torch.square(iou_max.detach() - pred_box_reps[..., -1]).sum()
-        # # loss_conf_reps = torch.square(1. - pred_box_reps[..., -1]).sum()
-        #
-        # # no-object confidence loss
-        # # ORIGIN ##############################################################
-        # # low IoU predictor
-        # loss_conf_no_reps = torch.square(0.-pred_box_no_reps[..., -1]).sum()
-        # # no-object predictor
-        # loss_conf_no_reps += torch.square(0.-pred_noobj[..., :self.B*5].reshape(-1, self.B, 5)[..., -1]).sum()
-        # # TEST ################################################################
-        # # loss_conf_no_reps = torch.square(pred_noobj[..., -1]).sum()
-        # #######################################################################
-        #
-        # # box loss
-        # # assert torch.all(torch.eq(target_origin, target))
-        # loss_xy = torch.square(target[..., 3:5] - pred_box_reps[..., :2]).sum()
-        # # loss_wh = torch.square(target[..., 5:7].sqrt() - pred_box_reps[..., 2:-1].sqrt()).sum()
-        # # model activation이 linear이므로 타겟에 sqrt를 적용함
-        # loss_wh = torch.square(target[..., 5:7].sqrt() - pred_box_reps[..., 2:-1]).sum()
-        # # loss_wh = torch.square(target[..., 5:7] - pred_box_reps[..., 2:-1]).sum()
-        # loss_box = loss_xy + loss_wh
-        #
-        # loss = self.lambda_coord * loss_box + loss_conf_reps + self.lambda_noobj * loss_conf_no_reps + loss_cls
-        # # print(pred)
-        # loss_dict = {
-        #     'loss': loss, 'xy': loss_xy, 'wh': loss_wh, 'cls': loss_cls,
-        #     'conf': loss_conf_reps, 'conf~': loss_conf_no_reps, 'iou': iou_max.mean()
-        # }
-        #
-        # # assert torch.all(torch.eq(pred_obj_copy, pred_obj))
-        # # assert torch.all(torch.eq(pred, pred_origin)) and torch.all(torch.eq(target, target_origin))
-        # return loss, loss_dict
-        # # #
-        # # # # sys.exit()
-
 
 def IoU(box0: torch.Tensor, box1: torch.Tensor) -> torch.Tensor:
     """IoU 계산"""
@@ -254,15 +157,14 @@ if __name__ == '__main__':
     init_seed(0)
 
     torch.set_printoptions(linewidth=800)
-    # target = torch.cat([torch.arange(16).view(16, 1), torch.randint(0, 7, (16, 2)), torch.rand(16, 4), (torch.rand(16, 1) * 20).int()], dim=-1)
     target = torch.tensor(
         [[0., 5., 2., 0.88020833, 0.3194707, 0.72916667, 0.48015123, 1.],
          [0., 4., 3., 0.5, 0.22778828, 0.69270833, 0.74669187, 14.]]
     ).to('cuda')
 
     target_flip = torch.tensor(
-        [[0., 5., 6.-2., 1.-0.88020833, 0.3194707, 0.72916667, 0.48015123, 1.],
-         [0., 4., 6.-3., 1.-0.5, 0.22778828, 0.69270833, 0.74669187, 14.]]
+        [[0., 4., 6.-3., 1.-0.5, 0.22778828, 0.69270833, 0.74669187, 14.],
+         [0., 5., 6.-2., 1.-0.88020833, 0.3194707, 0.72916667, 0.48015123, 1.]]
     ).to('cuda')
 
     pred = torch.rand(1, 7, 7, 30).to('cuda')
