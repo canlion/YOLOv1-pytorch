@@ -62,9 +62,16 @@ epoch마다 `temp_yolo.pth`로 모델 저장, 40000 스텝 학습 후 `yolo_last
 ```commandline
 python3 predict.py --img {이미지경로} --saved_pth {YOLO pth 경로} --save_path {예측 결과 저장 경로}
 ```
+* 기타 arguments
+  * gpu (action: store_true): gpu 사용 여부
+  * score_threshold (float: .2): prediction score threshold
+  * iou_threshold (float: .4): NMS IoU threshold
+  * hflip (action: store_true): 좌우 플립 수행
 
-* `{save_path}/{이미지이름}_predict.jpg`로 예측 결과 저장
-* NMS 미적용
+`{save_path}/{이미지이름}_predict.jpg`로 예측 결과 저장
+
+resnet18 backbone 모델 결과:
+![predict example](readme_data/example_predict.jpg)
 
 
 ## 모델
