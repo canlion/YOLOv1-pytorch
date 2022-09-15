@@ -3,16 +3,9 @@ import argparse
 
 import cv2
 import torch
-import numpy as np
 
-from dataset import Transform
 from model import YOLOv1
 from utils import draw_box
-
-# CLASSES = [
-#     "aeroplane", "bicycle", "bird", "boat", "bottle", "bus", "car", "cat", "chair", "cow",
-#     "diningtable", "dog", "horse", "motorbike", "person", "pottedplant", "sheep", "sofa", "train", "tvmonitor"
-# ]
 
 
 parser = argparse.ArgumentParser()
