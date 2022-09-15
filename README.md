@@ -4,7 +4,52 @@
 * 막히는 부분은 darknet을 참고하여 구현 - 링크: [pjreddie/darknet](https://github.com/pjreddie/darknet/tree/8c5364f58569eaeb5582a4915b36b24fc5570c76)
 * 논문 + 다크넷 YOLOv1 설정을 최대한 비슷하게 구현하는 것을 목적으로 합니다.
 
-## 데이터 - VOC 2007/2012
+## TODO
+- [x] 학습 & 예측
+- [x] VOC mAP 측정
+- [ ] 코드 다듬기
+- [ ] 논문 성능 재현
+
+## 성능
+
+**더 좋은 성능의 백본을 사용했지만 더 낮은 mAP가 측정됨 (약 -5%)**
+
+| model                         | mAP   | backbone top-5 acc. |
+|-------------------------------|-------|---------------------|
+| paper                         | 63.4  | 약 88 %             |
+| our(backbone: resnet18 / NMS) | 58.27 | 약 89.1 %           |
+
+
+* 기준: VOC mAP
+  * 레퍼런스: https://github.com/Cartucho/mAP
+  * `metric.py`: 레퍼런스 레포지터리의 예제와 같은 결과를 내도록 코드 작성
+* 학습 데이터셋: 2007 train/val + 2012 train/val
+* 테스트 데이터셋: 2007 test
+* 결과: 58.27 mAP
+```text
+class aeroplane            AP: 61.52
+class bicycle              AP: 63.94
+class bird                 AP: 60.84
+class boat                 AP: 46.16
+class bottle               AP: 23.27
+class bus                  AP: 70.32
+class car                  AP: 66.64
+class cat                  AP: 81.51
+class chair                AP: 32.37
+class cow                  AP: 60.80
+class diningtable          AP: 54.33
+class dog                  AP: 71.74
+class horse                AP: 74.73
+class motorbike            AP: 60.82
+class person               AP: 57.19
+class pottedplant          AP: 29.18
+class sheep                AP: 58.29
+class sofa                 AP: 56.56
+class train                AP: 77.08
+class tvmonitor            AP: 58.03
+mAP: 58.27
+```
+# 데이터 - VOC 2007/2012
 
 * VOC 데이터를 다운로드하여 `VOCdevkit` 하위에 `VOC{year}` 형식으로 정리.
 * `scripts/parse_voc_annotations.py`를 통해 ltrb 형식의 어노테이션 xml 파일을 xywh 형식의 text 파일로 변환. 
@@ -82,11 +127,15 @@ resnet18 backbone 모델 결과:
 
 ## 구현 중 문제 발생
 
-### 해결: 논문 그대로의 lr 설정하면 발산
-* 해결: 가중치 초기화 문제로 생각되어 다크넷의 가중치 초기화 방식을 그대로 이용하여 해결
+### ❌ 해결 중: 논문보다 낮은 mAP 기록
+* 논문과 다크넷을 참고해 원본과 최대한 가깝도록 구현하였으나 놓친 부분이 있는 듯.
+* 더 좋은 성능의 백본을 사용했음에도 약 5% 정도 mAP 감소
+
+### ✅ 해결: 논문 그대로의 lr 설정하면 발산
+* 해결: 가중치 초기화 문제로 생각되어 다크넷의 가중치 초기화 방식을 그대로 이용하여 해결.
 * TODO: 내용 정리
 
-### 해결: 두 오브젝트의 상대위치가 좌하단-우상단인 경우 디텍션 성능 하락
+### ✅ 해결: 두 오브젝트의 상대위치가 좌하단-우상단인 경우 디텍션 성능 하락
 * 해결: loss 코드 오류 - 오브젝트가 존재하는 위치의 prediction 값을 가져오는 과정에서 오브젝트의 순서와 prediction의 순서가 어긋날 수 있는 코드를 작성함. True/False mask 대신 인덱스를 통해 가져오도록 변경함.
   * ```python
           # loss.py
@@ -122,5 +171,3 @@ resnet18 backbone 모델 결과:
       * 박스 크기 예측 에러 (사람 박스의 width)
         * ![2](readme_data/000524.png)
         * ![2](readme_data/000524_error.png)
-
-## TODO
