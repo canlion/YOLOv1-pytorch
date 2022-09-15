@@ -1,13 +1,16 @@
 from collections import defaultdict
+from typing import Optional, List
 
 import numpy as np
 
 
 class VOCEvaluator:
-    def __init__(self, iou_thres: float = .5, num_classes: int = 20):
+    def __init__(self, iou_thres: float = .5, num_classes: int = 20, classes: Optional[List] = None):
         self.iou_thres = iou_thres
         self.num_classes = num_classes
         self.eval_category = defaultdict(lambda: {'match': [], 'scores': [], 'num_gt': 0, 'AP': 0.})
+        self.gt_classes = list(range(num_classes)) if classes is None else classes
+        assert len(self.gt_classes) == num_classes, 'num_classes != len(classes)'
 
     def add(self, dt: np.ndarray, gt: np.ndarray):
         # dt(detection): l, t, r, b, class idx, score
@@ -41,7 +44,7 @@ class VOCEvaluator:
 
     def accumulate(self):
         for c_idx in range(self.num_classes):
-            print('\n', gt_classes[c_idx], '-------------------')
+            # print('\n', self.gt_classes[c_idx], '-------------------')
             match, num_gt = self.eval_category[c_idx]['match'], self.eval_category[c_idx]['num_gt']
             scores = self.eval_category[c_idx]['scores']
 
@@ -54,13 +57,13 @@ class VOCEvaluator:
                 precision = match_cumsum / np.arange(1, match.shape[0]+1)
                 recall = match_cumsum / num_gt
 
-                print('num_gt', num_gt)
-                print('num_dt', match.shape[0])
-                print('P')
-                print([f'{p:.2f}' for p in precision])
-                print('R')
-                print([f'{r:.2f}' for r in recall])
-                print(f'tp: {match.sum()}, fp: {match.shape[0] - match.sum()}')
+                # print('num_gt', num_gt)
+                # print('num_dt', match.shape[0])
+                # print('P')
+                # print([f'{p:.2f}' for p in precision])
+                # print('R')
+                # print([f'{r:.2f}' for r in recall])
+                # print(f'tp: {match.sum()}, fp: {match.shape[0] - match.sum()}')
 
                 for i in range(len(precision)-1, 0, -1):
                     if precision[i] > precision[i-1]:
@@ -81,12 +84,12 @@ class VOCEvaluator:
         for c_idx in range(self.num_classes):
             ap = self.eval_category[c_idx]['AP']
             sum_AP += ap
-            ap_list.append((gt_classes[c_idx].decode('utf-8'), ap))
-            # print(f'class {str(gt_classes[c_idx]):20s} AP: {ap:.2f}')
+            ap_list.append((self.gt_classes[c_idx], ap))
+            # print(f'class {str(self.gt_classes[c_idx]):20s} AP: {ap:.2f}')
         ap_list.sort(key=lambda x: x[0])
-        # for cls, ap in ap_list:
-        #     print(f'class {cls:20s} AP: {ap * 100:.2f}')
-        # print(f'mAP: {sum_AP / self.num_classes * 100:.2f}')
+        for cls, ap in ap_list:
+            print(f'class {cls:20s} AP: {ap * 100:.2f}')
+        print(f'mAP: {sum_AP / self.num_classes * 100:.2f}')
         return sum_AP / self.num_classes
 
     def iou_matrix(self, dt, gt):
@@ -127,10 +130,10 @@ if __name__ == '__main__':
     gt_dir_path = '../od/mAP/input/ground-truth'
 
     gt_classes = sorted([
-        b'bowl', b'chair', b'diningtable', b'door', b'doll', b'cabinetry', b'shelf', b'coffeetable', b'book',
-        b'windowblind', b'pottedplant', b'bookcase', b'countertop', b'tap', b'wastecontainer', b'bottle', b'tincan',
-        b'bed', b'pictureframe', b'nightstand', b'heater', b'pillow', b'backpack', b'tvmonitor', b'sofa', b'cup',
-        b'remote', b'vase', b'person', b'sink'
+        'bowl', 'chair', 'diningtable', 'door', 'doll', 'cabinetry', 'shelf', 'coffeetable', 'book',
+        'windowblind', 'pottedplant', 'bookcase', 'countertop', 'tap', 'wastecontainer', 'bottle', 'tincan',
+        'bed', 'pictureframe', 'nightstand', 'heater', 'pillow', 'backpack', 'tvmonitor', 'sofa', 'cup',
+        'remote', 'vase', 'person', 'sink'
     ])
 
     def cvt_classes(x):
@@ -138,7 +141,7 @@ if __name__ == '__main__':
             gt_classes.append(x)
         return gt_classes.index(x)
 
-    evaluator = VOCEvaluator(num_classes=len(gt_classes))
+    evaluator = VOCEvaluator(num_classes=len(gt_classes), classes=gt_classes)
 
     dt_list = glob(os.path.join(dt_dir_path, '*.txt'))
     for dt_path in dt_list:
