@@ -69,7 +69,7 @@ class YOLOv1(nn.Module):
     def normalization_config(self):
         return {key: self.backbone_config[key] for key in ['mean', 'std']}
 
-    def predict(self, img: np.ndarray, score_threshold: float = .2, iou_threshold: float = .4)\
+    def predict(self, img: np.ndarray, score_threshold: float = .2, iou_threshold: float = .4, device: str = 'cpu')\
             -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         prediction + NMS
@@ -99,9 +99,12 @@ class YOLOv1(nn.Module):
         img_h, img_w = img.shape[:2]
 
         inp = t(img)['img']
-        inp = torch.tensor(np.transpose(inp, (2, 0, 1))).float()
+        inp = torch.tensor(np.transpose(inp, (2, 0, 1))).float().to(device)
 
-        pred = self(inp[None]).detach().numpy()[0]  # (S, S, L)
+        if device == 'cuda':
+            pred = self(inp[None]).detach().cpu().numpy()[0]  # (S, S, L)
+        else:
+            pred = self(inp[None]).detach().numpy()[0]  # (S, S, L)
         S = pred.shape[0]
         boxes = pred[..., :self.B*5].reshape(S, S, self.B, 5)
 
