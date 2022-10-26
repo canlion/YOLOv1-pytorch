@@ -69,7 +69,7 @@ class YOLOv1Loss(nn.Module):
 
         # class prob. loss
         cls_target = F.one_hot(target[..., -1].long(), num_classes=self.C).float().to(device)
-        loss_cls_prob = torch.square(cls_target - obj_cls_pred).sum()
+        loss_cls_prob = torch.square(cls_target - obj_cls_pred).sum() / batch
 
         # IoU - pred, target의 YOLO style xywh를 디코딩하여 IoU 계산
         with torch.no_grad():
@@ -99,23 +99,23 @@ class YOLOv1Loss(nn.Module):
         assert resp_box_pred.size() == (N, 5)
 
         # box loss
-        loss_box_xy = torch.square(target[..., 3:5] - resp_box_pred[..., :2]).sum()
+        loss_box_xy = torch.square(target[..., 3:5] - resp_box_pred[..., :2]).sum() / batch
         #  identity activation 사용하므로 예측값이 음수가 나올 수 있음. 따라서 wh의 sqrt를 타겟으로 이용
-        loss_box_wh = torch.square(target[..., 5:7].sqrt() - resp_box_pred[..., 2:4]).sum()
+        loss_box_wh = torch.square(target[..., 5:7].sqrt() - resp_box_pred[..., 2:4]).sum() / batch
         loss_box = loss_box_xy + loss_box_wh
 
         # object confidence loss
-        loss_conf = torch.square(iou_max.detach() - resp_box_pred[..., -1]).sum()
+        loss_conf = torch.square(iou_max.detach() - resp_box_pred[..., -1]).sum() / batch
 
         # no-object confidence loss
         #   not responsible predictor
         not_resp_box_pred = obj_box_pred[~resp_mask]
         assert not_resp_box_pred.size() == (N, 5)
-        loss_noobj_conf = torch.square(0. - not_resp_box_pred[..., -1]).sum()
+        loss_noobj_conf = torch.square(0. - not_resp_box_pred[..., -1]).sum() / batch
         #   no-object grid
         noobj_box_pred = pred[~obj_grid_mask][..., :-self.C].view(-1, self.B, 5)
         assert noobj_box_pred.size() == (batch * S * S - N, self.B, 5)
-        loss_noobj_conf += torch.square(0. - noobj_box_pred[..., -1]).sum()
+        loss_noobj_conf += torch.square(0. - noobj_box_pred[..., -1]).sum() / batch
 
         loss = self.lambda_coord * loss_box + loss_cls_prob + loss_conf + self.lambda_noobj * loss_noobj_conf
         loss_dict = {

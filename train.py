@@ -65,35 +65,14 @@ def main(args: argparse.Namespace):
         collate_fn=make_batch,
     )
 
-
     # TODO: optimizer, criterion
-    # loss는 평균이 아닌 합으로 계산하므로 lr, decay를 배치사이즈에 맞게 조절
-    lr = args.lr / args.batch_size
-    w_decay = args.weight_decay * args.batch_size
-
     criterion = YOLOv1Loss(args.B, args.C, args.lambda_coord, args.lambda_noobj)
 
     weights = [p for n, p in model.named_parameters() if n.endswith('weight') and '.bn' not in n]
     biases = [p for n, p in model.named_parameters() if n.endswith('bias') or '.bn' in n]
     assert len(tuple(model.parameters())) == len(weights) + len(biases)
-    # optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
-    # optimizer = torch.optim.Adam(weights, lr=args.lr, weight_decay=args.weight_decay)
-    optimizer = torch.optim.SGD(weights, lr=lr, momentum=args.momentum, weight_decay=w_decay)
-    optimizer.add_param_group({'params': biases, 'lr': lr, 'momentum': args.momentum})
-    # optimizer = torch.optim.SGD(model.added_layers.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
-    # lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [75, 105], gamma=.1)
-    # lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=40, gamma=.1)
-
-    # def lr_lambda(epoch):
-    #     if epoch < 10:
-    #         return .1 * epoch
-    #     elif epoch < 75:
-    #         return 1.
-    #     elif epoch < 105:
-    #         return .1
-    #     else:
-    #         return .01
-    # lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
+    optimizer = torch.optim.SGD(weights, lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
+    optimizer.add_param_group({'params': biases, 'lr': args.lr, 'momentum': args.momentum})
 
     # TODO: train & validation loop
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -106,7 +85,7 @@ def main(args: argparse.Namespace):
     num_batches = 0
     gamma = 0.
 
-    print(f'init lr: {lr}')
+    print(f'init lr: {args.lr}')
     # for epoch in range(args.epochs):
     epoch = 0
     while True:
@@ -122,7 +101,7 @@ def main(args: argparse.Namespace):
                     p_group['lr'] = np.interp(
                         warmup_step,
                         [0, len(train_loader)*warmup_epochs],
-                        [lr / 10, lr],
+                        [args.lr / 10, args.lr],
                     )
                 warmup_step += 1
 
