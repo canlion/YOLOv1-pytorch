@@ -143,7 +143,7 @@ def main(args: argparse.Namespace):
                     print('done!')
                     sys.exit(0)
 
-        report_str = colors.red('loss:') + f'{epoch_loss / batch_size / len(train_loader)}, ' \
+        report_str = colors.red('loss:') + f'{epoch_loss / len(train_loader)}, ' \
             + ' '.join([colors.red(f'{key}:') + f'{val / len(train_loader):.4f}' for key, val in losses_dict.items()])
         print(colors.cyan(f'epoch {epoch + 1}'), report_str, f'num update: {num_batches}')
 
