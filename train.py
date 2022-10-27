@@ -67,12 +67,12 @@ def main(args: argparse.Namespace):
 
     # TODO: optimizer, criterion
     criterion = YOLOv1Loss(args.B, args.C, args.lambda_coord, args.lambda_noobj)
-
+    lr, w_decay = args.lr / args.subdivision, args.weight_decay * args.subdivision
     weights = [p for n, p in model.named_parameters() if n.endswith('weight') and '.bn' not in n]
     biases = [p for n, p in model.named_parameters() if n.endswith('bias') or '.bn' in n]
     assert len(tuple(model.parameters())) == len(weights) + len(biases)
-    optimizer = torch.optim.SGD(weights, lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
-    optimizer.add_param_group({'params': biases, 'lr': args.lr, 'momentum': args.momentum})
+    optimizer = torch.optim.SGD(weights, lr=lr, momentum=args.momentum, weight_decay=w_decay)
+    optimizer.add_param_group({'params': biases, 'lr': lr, 'momentum': args.momentum})
 
     # TODO: train & validation loop
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -85,7 +85,7 @@ def main(args: argparse.Namespace):
     num_batches = 0
     gamma = 0.
 
-    print(f'init lr: {args.lr}')
+    print(f'init lr: {lr * args.subdivision}')
     # for epoch in range(args.epochs):
     epoch = 0
     while True:
@@ -101,7 +101,7 @@ def main(args: argparse.Namespace):
                     p_group['lr'] = np.interp(
                         warmup_step,
                         [0, len(train_loader)*warmup_epochs],
-                        [args.lr / 10, args.lr],
+                        [lr / 10, lr],
                     )
                 warmup_step += 1
 
@@ -135,7 +135,7 @@ def main(args: argparse.Namespace):
                     for p_group in optimizer.param_groups:
                         p_group['lr'] *= gamma
                     last_lr = optimizer.param_groups[0]['lr']
-                    print(f'lr updated: {last_lr}')
+                    print(f'lr updated: {last_lr * args.subdivision}')
                     gamma = 0.
 
                 if num_batches == 40000:  # 학습 종료
@@ -143,7 +143,7 @@ def main(args: argparse.Namespace):
                     print('done!')
                     sys.exit(0)
 
-        report_str = colors.red('loss:') + f'{epoch_loss / len(train_loader)}, ' \
+        report_str = colors.red('loss:') + f'{epoch_loss / len(train_loader):.4f}, ' \
             + ' '.join([colors.red(f'{key}:') + f'{val / len(train_loader):.4f}' for key, val in losses_dict.items()])
         print(colors.cyan(f'epoch {epoch + 1}'), report_str, f'num update: {num_batches}')
 
@@ -161,7 +161,7 @@ def main(args: argparse.Namespace):
             for key, tensor in losses.items():
                 v_losses_dict[key] += tensor.item()
 
-        report_str = colors.blue('valid loss:') + f'{valid_loss / batch_size / len(valid_loader)}, ' \
+        report_str = colors.blue('valid loss:') + f'{valid_loss / len(valid_loader):.4f}, ' \
             + ' '.join([colors.blue(f'{key}:') + f'{val / len(valid_loader):.4f}' for key, val in v_losses_dict.items()])
         # TODO: VOC mAP metric
         # v_loss = valid_loss / batch_size / len(valid_loader)
