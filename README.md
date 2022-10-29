@@ -15,9 +15,10 @@
 **더 좋은 성능의 백본을 사용했지만 더 낮은 mAP가 측정됨 (약 -5%)**
 
 | model                         | mAP   | backbone top-5 acc. |
-|-------------------------------|-------|---------------------|
+|-------------------------------|-------|--------------------|
 | paper                         | 63.4  | 약 88 %             |
 | our(backbone: resnet18 / NMS) | 58.27 | 약 89.1 %           |
+| our(backbone: resnet34 / NMS) | 61.68 | 약 93.3 %           |
 
 
 * 기준: VOC mAP
@@ -25,8 +26,11 @@
   * `metric.py`: 레퍼런스 레포지터리의 예제와 같은 결과를 내도록 코드 작성
 * 학습 데이터셋: 2007 train/val + 2012 train/val
 * 테스트 데이터셋: 2007 test
-* 결과: 58.27 mAP
+* 결과:
+  * resnet18: 58.27 mAP
+  * resnet34: 61.68 mAP
 ```text
+backbone: resnet18
 class aeroplane            AP: 61.52
 class bicycle              AP: 63.94
 class bird                 AP: 60.84
@@ -116,8 +120,10 @@ python3 predict.py --img {이미지경로} --saved_pth {YOLO pth 경로} --save_
 `{save_path}/{이미지이름}_predict.jpg`로 예측 결과 저장
 
 resnet18 backbone 모델 결과:
-![predict example](readme_data/example_predict.jpg)
+![predict example](readme_data/example_predict_resnet18.jpg)
 
+resnet34 backbone 모델 결과:
+![predict example](readme_data/example_predict_resnet34.jpg)
 
 ## 모델
 
