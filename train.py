@@ -14,9 +14,11 @@ from collections import defaultdict
 
 import colors
 import numpy as np
-from tqdm import tqdm
 import torch
 import torch.nn as nn
+import mlflow
+
+from tqdm import tqdm
 from torch.utils.data import DataLoader
 from torch.cuda.amp import autocast, GradScaler
 
@@ -88,88 +90,101 @@ def main(args: argparse.Namespace):
     print(f'init lr: {lr * args.subdivision}')
     # for epoch in range(args.epochs):
     epoch = 0
-    while True:
-        # 학습 단계
-        model.train()
-        epoch_loss = 0.
-        losses_dict = defaultdict(float)
-        tqdm_loader = tqdm(train_loader)
-        for i, (img, target) in enumerate(tqdm_loader):
-            # lr warm-up
-            if epoch < warmup_epochs:
-                for p_group in optimizer.param_groups:
-                    p_group['lr'] = np.interp(
-                        warmup_step,
-                        [0, len(train_loader)*warmup_epochs],
-                        [lr / 10, lr],
-                    )
-                warmup_step += 1
-
-            img, target = img.to(device), target.to(device)
-
-            pred = model(img)
-            loss, losses = criterion(pred, target)
-
-            # loss 출력
-            tqdm_loader.set_description(' '.join(f'{key}: {val:.2f}' for key, val in losses.items()))
-            epoch_loss += loss.item()
-            for key, tensor in losses.items():
-                losses_dict[key] += tensor.item()
-
-            loss.backward()
-            num_steps += 1
-
-            # 그래디언트를 args.subdivision만큼 누적하여 업데이트
-            if num_steps % args.subdivision == 0:
-                optimizer.step()
-                optimizer.zero_grad()
-                num_batches += 1
-
-                # 스텝 수에 따라 lr 조정
-                if num_batches == 20000:
-                    gamma = .1
-                elif num_batches == 30000:
-                    gamma = .1
-
-                if gamma != 0.:
+    scaler = GradScaler()
+    with mlflow.start_run() as run:
+        while True:
+            # 학습 단계
+            model.train()
+            epoch_loss = 0.
+            losses_dict = defaultdict(float)
+            tqdm_loader = tqdm(train_loader)
+            for i, (img, target) in enumerate(tqdm_loader):
+                # lr warm-up
+                if epoch < warmup_epochs:
                     for p_group in optimizer.param_groups:
-                        p_group['lr'] *= gamma
-                    last_lr = optimizer.param_groups[0]['lr']
-                    print(f'lr updated: {last_lr * args.subdivision}')
-                    gamma = 0.
+                        p_group['lr'] = np.interp(
+                            warmup_step,
+                            [0, len(train_loader)*warmup_epochs],
+                            [lr / 10, lr],
+                        )
+                    warmup_step += 1
 
-                if num_batches == 40000:  # 학습 종료
-                    torch.save(model.state_dict(), './yolo_last.pth')
-                    print('done!')
-                    sys.exit(0)
+                img, target = img.to(device), target.to(device)
 
-        report_str = colors.red('loss:') + f'{epoch_loss / len(train_loader):.4f}, ' \
-            + ' '.join([colors.red(f'{key}:') + f'{val / len(train_loader):.4f}' for key, val in losses_dict.items()])
-        print(colors.cyan(f'epoch {epoch + 1}'), report_str, f'num update: {num_batches}')
+                with autocast():
+                    pred = model(img)
+                    loss, losses = criterion(pred, target)
 
-        # validation
-        model.eval()
-        valid_loss = 0.
-        v_losses_dict = defaultdict(float)
-        for img, target in valid_loader:
-            img, target = img.to(device), target.to(device)
+                # loss 출력
+                tqdm_loader.set_description(' '.join(f'{key}: {val:.2f}' for key, val in losses.items()))
+                epoch_loss += loss.item()
+                for key, tensor in losses.items():
+                    losses_dict[key] += tensor.item()
 
-            with torch.no_grad():
-                pred = model(img)
-                loss, losses = criterion(pred, target)
-            valid_loss += loss.item()
-            for key, tensor in losses.items():
-                v_losses_dict[key] += tensor.item()
+                # loss.backward()
+                scaler.scale(loss).backward()
+                num_steps += 1
 
-        report_str = colors.blue('valid loss:') + f'{valid_loss / len(valid_loader):.4f}, ' \
-            + ' '.join([colors.blue(f'{key}:') + f'{val / len(valid_loader):.4f}' for key, val in v_losses_dict.items()])
-        # TODO: VOC mAP metric
-        # v_loss = valid_loss / batch_size / len(valid_loader)
-        # print(colors.blue(f'valid loss: {v_loss}'))
-        print(report_str)
+                # 그래디언트를 args.subdivision만큼 누적하여 업데이트
+                if num_steps % args.subdivision == 0:
+                    # optimizer.step()
+                    scaler.step(optimizer)
+                    scaler.update()
+                    optimizer.zero_grad()
+                    num_batches += 1
 
-        torch.save(model.state_dict(), './temp_yolo.pth')
-        epoch += 1
+                    # 스텝 수에 따라 lr 조정
+                    if num_batches == 20000:
+                        gamma = .1
+                    elif num_batches == 30000:
+                        gamma = .1
+
+                    if gamma != 0.:
+                        for p_group in optimizer.param_groups:
+                            p_group['lr'] *= gamma
+                        last_lr = optimizer.param_groups[0]['lr']
+                        print(f'lr updated: {last_lr * args.subdivision}')
+                        gamma = 0.
+
+                    if num_batches == 40000:  # 학습 종료
+                        torch.save(model.state_dict(), './yolo_last.pth')
+                        print('done!')
+                        sys.exit(0)
+
+            report_str = colors.red('loss:') + f'{epoch_loss / len(train_loader):.4f}, ' \
+                + ' '.join([colors.red(f'{key}:') + f'{val / len(train_loader):.4f}' for key, val in losses_dict.items()])
+            print(colors.cyan(f'epoch {epoch + 1}'), report_str, f'num update: {num_batches}')
+
+            # validation
+            model.eval()
+            valid_loss = 0.
+            v_losses_dict = defaultdict(float)
+            for img, target in valid_loader:
+                img, target = img.to(device), target.to(device)
+
+                with torch.no_grad():
+                    pred = model(img)
+                    loss, losses = criterion(pred, target)
+                valid_loss += loss.item()
+                for key, tensor in losses.items():
+                    v_losses_dict[key] += tensor.item()
+
+            report_str = colors.blue('valid loss:') + f'{valid_loss / len(valid_loader):.4f}, ' \
+                + ' '.join([colors.blue(f'{key}:') + f'{val / len(valid_loader):.4f}' for key, val in v_losses_dict.items()])
+            # TODO: VOC mAP metric
+            # v_loss = valid_loss / batch_size / len(valid_loader)
+            # print(colors.blue(f'valid loss: {v_loss}'))
+            print(report_str)
+
+            torch.save(model.state_dict(), './temp_yolo.pth')
+
+            mlflow.log_metrics({
+                'train loss': epoch_loss / len(train_loader),
+                'train iou': losses_dict['iou'] / len(train_loader),
+                'validation loss': valid_loss / len(valid_loader),
+                'validation iou': v_losses_dict['iou'] / len(valid_loader),
+            }, epoch)
+            epoch += 1
 
 
 if __name__ == '__main__':
